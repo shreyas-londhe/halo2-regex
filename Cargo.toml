@@ -3,11 +3,6 @@ name = "halo2-regex"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-default = ["vrm"]
-dev-graph = ["halo2-base/dev-graph", "plotters"]
-vrm = ["js-sandbox", "graph-cycles", "petgraph"]
-
 [dependencies]
 halo2-base = { version = "0.2.2", default-features = false, features = [
     "halo2-pse",
@@ -29,6 +24,9 @@ js-sandbox = { version = "0.2.0-rc.1", git = "https://github.com/Bromeon/js-sand
 itertools = "0.10.3"
 clap = { version = "=4.2.1", features = ["derive"] }
 log = "0.4.17"
+ahash = "=0.8.6"
+# zk-regex-compiler = { git = "https://github.com/shreyas-londhe/zk-regex.git", branch = "feat/halo2-regex" }
+zk-regex-compiler = { path = "../zk-regex/packages/compiler" }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
@@ -60,11 +58,6 @@ criterion = { version = "0.3" }
 [[bench]]
 name = "regex_evm"
 harness = false
-
-[[bin]]
-name = "vrm"
-test = false
-bench = false
 
 [lib]
 name = "halo2_regex"

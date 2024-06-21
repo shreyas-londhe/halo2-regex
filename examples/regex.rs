@@ -1,21 +1,15 @@
 ///! A circuit in this example verifies that the input string satisfies the regex of "email was meant for @(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z)+." and exposes the substring matching with "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z)" to instances (public inputs).
 use halo2_base::gates::flex_gate::FlexGateConfig;
 use halo2_base::halo2_proofs::circuit::Layouter;
-use halo2_base::halo2_proofs::plonk::{ConstraintSystem, Error};
-use halo2_base::halo2_proofs::{
-    circuit::SimpleFloorPlanner,
-    plonk::{Column, Instance},
-};
-use halo2_base::halo2_proofs::{dev::MockProver, halo2curves::bn256::Fr, plonk::Circuit};
+use halo2_base::halo2_proofs::plonk::{ ConstraintSystem, Error };
+use halo2_base::halo2_proofs::{ circuit::SimpleFloorPlanner, plonk::{ Column, Instance } };
+use halo2_base::halo2_proofs::{ dev::MockProver, halo2curves::bn256::Fr, plonk::Circuit };
 use halo2_base::Context;
-use halo2_base::{utils::PrimeField, ContextParams, SKIP_FIRST_PASS};
-use halo2_regex::{
-    defs::{AllstrRegexDef, RegexDefs, SubstrRegexDef},
-    vrm::DecomposedRegexConfig,
-    RegexVerifyConfig,
-};
+use halo2_base::{ utils::PrimeField, ContextParams, SKIP_FIRST_PASS };
+use halo2_regex::{ defs::{ AllstrRegexDef, RegexDefs, SubstrRegexDef }, RegexVerifyConfig };
 use std::marker::PhantomData;
 use std::path::Path;
+use zk_regex_compiler::DecomposedRegexConfig;
 
 const MAX_STRING_LEN: usize = 128;
 const K: usize = 17;
@@ -64,7 +58,7 @@ impl<F: PrimeField> Circuit<F> for ExampleCircuit<F> {
             &[Self::NUM_ADVICE],
             Self::NUM_FIXED,
             0,
-            K,
+            K
         );
         let regex_defs = vec![RegexDefs {
             allstr: all_regex_def1,
@@ -79,7 +73,7 @@ impl<F: PrimeField> Circuit<F> for ExampleCircuit<F> {
     fn synthesize(
         &self,
         config: Self::Config,
-        mut layouter: impl Layouter<F>,
+        mut layouter: impl Layouter<F>
     ) -> Result<(), Error> {
         // test regex: "email was meant for @(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|0|1|2|3|4|5|6|7|8|9|_)+( and (a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z)+)*."
         config.inner.load(&mut layouter)?;
@@ -100,22 +94,24 @@ impl<F: PrimeField> Circuit<F> for ExampleCircuit<F> {
                     first_pass = false;
                     return Ok(());
                 }
-                let mut aux = Context::new(
-                    region,
-                    ContextParams {
-                        max_rows: gate.max_rows,
-                        num_context_ids: 1,
-                        fixed_columns: gate.constants.clone(),
-                    },
-                );
+                let mut aux = Context::new(region, ContextParams {
+                    max_rows: gate.max_rows,
+                    num_context_ids: 1,
+                    fixed_columns: gate.constants.clone(),
+                });
                 let ctx = &mut aux;
                 let result = config.inner.match_substrs(ctx, &self.characters)?;
 
-                for (assigned_char, assigned_substr_id) in result
-                    .masked_characters
+                for (i, (assigned_char, assigned_substr_id)) in result.masked_characters
                     .iter()
                     .zip(result.all_substr_ids.iter())
-                {
+                    .enumerate() {
+                    println!(
+                        "i: {}\nassigned_char: {:?}\nassigned_substr_id: {:?}",
+                        i,
+                        assigned_char.value(),
+                        assigned_substr_id.value()
+                    );
                     masked_char_cells.push(assigned_char.cell());
                     masked_substr_id_cells.push(assigned_substr_id.cell());
                 }
@@ -135,7 +131,7 @@ impl<F: PrimeField> Circuit<F> for ExampleCircuit<F> {
                 //         .map(|v| assert_eq!(*v, F::from(expected_substr_ids[idx] as u64)));
                 // }
                 Ok(())
-            },
+            }
         )?;
         for (idx, cell) in masked_char_cells.into_iter().enumerate() {
             layouter.constrain_instance(cell, config.instances, idx)?;
@@ -148,38 +144,36 @@ impl<F: PrimeField> Circuit<F> for ExampleCircuit<F> {
 }
 
 fn main() {
-    let regex1_decomposed: DecomposedRegexConfig = serde_json::from_str(
-        r#"
+    let mut regex1_decomposed: DecomposedRegexConfig = serde_json
+        ::from_str(
+            r#"
         {
-            "max_byte_size": 128,
             "parts":[
                 {
                     "is_public": false,
-                    "regex_def": "email was meant for @",
-                    "max_size": 21
+                    "regex_def": "email was meant for @"
                 },
                 {
                     "is_public": true,
-                    "regex_def": "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z)+",
-                    "max_size": 7,
-                    "solidity": {
-                        "type": "String"
-                    }
+                    "regex_def": "[a-z]+"
                 },
                 {
                     "is_public": false,
-                    "regex_def": ".",
-                    "max_size": 1
+                    "regex_def": ".*"
                 }
             ]
         }
-    "#,
-    )
-    .unwrap();
-    regex1_decomposed
-        .gen_regex_files(
+    "#
+        )
+        .unwrap();
+    let regex_and_dfa = regex1_decomposed
+        .to_regex_and_dfa()
+        .expect("failed to convert the decomposed regex to dfa");
+    regex_and_dfa
+        .gen_halo2_tables(
             &Path::new("./examples/ex_allstr.txt").to_path_buf(),
             &[Path::new("./examples/ex_substr_id1.txt").to_path_buf()],
+            true
         )
         .unwrap();
     let characters: Vec<u8> = "email was meant for @vitalik."
@@ -200,8 +194,7 @@ fn main() {
     let prover = MockProver::run(
         K as u32,
         &circuit,
-        vec![vec![masked_chars, masked_substr_ids].concat()],
-    )
-    .unwrap();
+        vec![vec![masked_chars, masked_substr_ids].concat()]
+    ).unwrap();
     assert_eq!(prover.verify(), Ok(()));
 }
