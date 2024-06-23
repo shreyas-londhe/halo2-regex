@@ -25,8 +25,7 @@ itertools = "0.10.3"
 clap = { version = "=4.2.1", features = ["derive"] }
 log = "0.4.17"
 ahash = "=0.8.6"
-# zk-regex-compiler = { git = "https://github.com/shreyas-londhe/zk-regex.git", branch = "feat/halo2-regex" }
-zk-regex-compiler = { path = "../zk-regex/packages/compiler" }
+zk-regex-compiler = { git = "https://github.com/shreyas-londhe/zk-regex.git", branch = "feat/halo2-regex" }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }

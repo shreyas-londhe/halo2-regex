@@ -803,12 +803,7 @@ impl<F: PrimeField> RegexVerifyConfig<F> {
             states.push(vec![defs.allstr.first_state_val]);
             for (c_idx, character) in characters.into_iter().enumerate() {
                 let state = states[d_idx][c_idx];
-                println!("char: {} state: {}", *character as char, state);
                 let next_state = defs.allstr.state_lookup.get(&(*character, state));
-                // println!(
-                //     "d_idx {} c_idx {} char {} state {}",
-                //     d_idx, c_idx, char, state,
-                // );
                 match next_state {
                     Some((_, s)) => states[d_idx].push(*s),
                     None => panic!(
