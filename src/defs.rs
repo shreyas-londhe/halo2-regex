@@ -73,10 +73,7 @@ impl AllstrRegexDef {
     /// # Return values
     /// Return a new [`AllstrRegexDef`].
     pub fn read_from_reader<R: std::io::Read>(reader: BufReader<R>) -> Self {
-        // let file = File::open(file_path).unwrap();
-        // let reader = BufReader::new(file);
         let mut state_lookup = HashMap::<(u8, u64), (usize, u64)>::new();
-        // let mut array = Vec::new();
         let mut first_state_val = 0;
         let mut accepted_state_val = 0;
         let mut largest_state_val = 0;
@@ -99,7 +96,6 @@ impl AllstrRegexDef {
             } else {
                 state_lookup.insert((elements[2] as u8, elements[0]), (idx, elements[1]));
             }
-            // array.push(elements);
         }
         Self {
             state_lookup,
@@ -210,23 +206,8 @@ impl SubstrRegexDef {
                 end_states = elements;
             } else {
                 valid_state_transitions.insert((elements[0], elements[1]));
-                // if elements[0] < start_state {
-                //     start_state = elements[0];
-                // }
-                // if one_state_path.get(&elements[0]).is_none() && elements[0] != elements[1] {
-                //     one_state_path.insert(elements[0], elements[1]);
-                // }
             }
         }
-        // let mut end_state = start_state;
-        // while let Some(next_state) = one_state_path.get(&end_state) {
-        //     println!("end_state {} next_state {}", end_state, next_state);
-        //     end_state = *next_state;
-        // }
-        // println!(
-        //     "start_state {} end_state {} valid transition {:?}",
-        //     start_state, end_state, valid_state_transitions
-        // );
 
         Self {
             valid_state_transitions,

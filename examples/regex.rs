@@ -86,6 +86,7 @@ impl<F: PrimeField> Circuit<F> for ExampleCircuit<F> {
         let gate = config.inner.gate().clone();
         let mut masked_char_cells = vec![];
         let mut masked_substr_id_cells = vec![];
+
         layouter.assign_region(
             || "regex",
             |region| {
@@ -116,12 +117,14 @@ impl<F: PrimeField> Circuit<F> for ExampleCircuit<F> {
                 Ok(())
             },
         )?;
+
         for (idx, cell) in masked_char_cells.into_iter().enumerate() {
             layouter.constrain_instance(cell, config.instances, idx)?;
         }
         for (idx, cell) in masked_substr_id_cells.into_iter().enumerate() {
             layouter.constrain_instance(cell, config.instances, MAX_STRING_LEN + idx)?;
         }
+
         Ok(())
     }
 }

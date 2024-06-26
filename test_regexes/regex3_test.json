@@ -1,33 +1,28 @@
 {
-    "max_byte_size": 128,
     "parts": [
         {
             "is_public": false,
-            "regex_def": "(([0-9a-zA-Z!\"#$%&'()*+,\\-./:;<=>?@[\\\\\\]^_`{|}~ \\t\\n\\r\\x0b\\x0c]+\\r\\n)?)",
-            "max_size": 128
+            "regex_def": "([0-9A-Za-z\"#\\$%&'\\(\\)\\*\\+,-\\.:!;<=>\\?@\\[\\]\\^`_\\/\\{\\}\\|~ \n\r\\x0b\\x0c]+)?"
         },
         {
             "is_public": false,
-            "regex_def": "from:",
-            "max_size": 7
+            "regex_def": "from:"
         },
         {
             "is_public": false,
-            "regex_def": "(([a-zA-Z0-9_\\.\" @]+<)?)",
-            "max_size": 20
+            "regex_def": "([a-zA-Z0-9_\\.\" @]+)?"
+        },
+        {
+            "is_public": false,
+            "regex_def": "<?"
         },
         {
             "is_public": true,
-            "regex_def": "([a-zA-Z0-9_\\.-]+@[a-zA-Z0-9_\\.-]+)",
-            "max_size": 20,
-            "solidity": {
-                "type": "String"
-            }
+            "regex_def": "[a-zA-Z0-9_\\.-]+@[a-zA-Z0-9_\\.-]+"
         },
         {
             "is_public": false,
-            "regex_def": ">?\\r\\n",
-            "max_size": 3
+            "regex_def": ">?\r\n"
         }
     ]
 }
