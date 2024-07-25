@@ -44,9 +44,7 @@
 pub mod defs;
 /// Lookup table for each regex definition.
 pub mod table;
-/// Variable-regex mapping, a helpful tool to generate regex definition files from decomposed regexes.
-#[cfg(feature = "vrm")]
-pub mod vrm;
+
 use crate::table::RegexTableConfig;
 use crate::{AllstrRegexDef, RegexDefs, SubstrRegexDef};
 pub use defs::*;
@@ -71,8 +69,6 @@ use std::{
     io::{BufRead, BufReader},
     marker::PhantomData,
 };
-#[cfg(feature = "vrm")]
-use vrm::DecomposedRegexConfig;
 
 /// Output type definition of [`RegexVerifyConfig`].
 #[derive(Debug, Clone, Default)]
@@ -84,11 +80,11 @@ pub struct AssignedRegexResult<'a, F: PrimeField> {
     /// The length is equal to `max_chars_size`.
     pub all_characters: Vec<AssignedValue<'a, F>>,
     /// The assigned substring id of characters in the input string.
-    /// The length is equal to `max_chars_size`.    
+    /// The length is equal to `max_chars_size`.
     pub all_substr_ids: Vec<AssignedValue<'a, F>>,
     /// The masked version of `all_characters`.
     /// Each character in `all_characters` is turned to zero in `masked_characters` iff its `substr_id` is zero, i.e., it belongs to no substring.
-    /// The length is equal to `max_chars_size`.    
+    /// The length is equal to `max_chars_size`.
     pub masked_characters: Vec<AssignedValue<'a, F>>,
 }
 
@@ -805,16 +801,15 @@ impl<F: PrimeField> RegexVerifyConfig<F> {
         let mut states = vec![];
         for (d_idx, defs) in self.regex_defs.iter().enumerate() {
             states.push(vec![defs.allstr.first_state_val]);
-            for (c_idx, char) in characters.into_iter().enumerate() {
+            for (c_idx, character) in characters.into_iter().enumerate() {
                 let state = states[d_idx][c_idx];
-                let next_state = defs.allstr.state_lookup.get(&(*char, state));
-                // println!(
-                //     "d_idx {} c_idx {} char {} state {}",
-                //     d_idx, c_idx, char, state,
-                // );
+                let next_state = defs.allstr.state_lookup.get(&(*character, state));
                 match next_state {
                     Some((_, s)) => states[d_idx].push(*s),
-                    None => panic!("The transition from {} by {} is invalid!", state, *char),
+                    None => panic!(
+                        "The transition from {} by {} is invalid!",
+                        state, *character as char
+                    ),
                 }
             }
             assert_eq!(states[d_idx].len(), characters.len() + 1);
@@ -827,7 +822,7 @@ impl<F: PrimeField> RegexVerifyConfig<F> {
         let mut substr_id_offset = 1;
         for (d_idx, defs) in self.regex_defs.iter().enumerate() {
             substr_ids.push(vec![0; states[d_idx].len() - 1]);
-            for state_idx in 0..(states[d_idx].len() - 1) {
+            for state_idx in 0..states[d_idx].len() - 1 {
                 for (substr_idx, substr_def) in defs.substrs.iter().enumerate() {
                     if substr_def
                         .valid_state_transitions
@@ -888,7 +883,6 @@ impl<F: PrimeField> RegexVerifyConfig<F> {
     }
 }
 
-#[cfg(feature = "vrm")]
 #[cfg(test)]
 mod test {
     use halo2_base::halo2_proofs::{
@@ -897,12 +891,10 @@ mod test {
         plonk::{Any, Circuit},
     };
     use halo2_base::{gates::range::RangeStrategy::Vertical, ContextParams, SKIP_FIRST_PASS};
+    use zk_regex_compiler::DecomposedRegexConfig;
 
     use super::*;
-    use crate::{
-        defs::{AllstrRegexDef, SubstrRegexDef},
-        vrm::DecomposedRegexConfig,
-    };
+    use crate::defs::{AllstrRegexDef, SubstrRegexDef};
 
     use halo2_base::halo2_proofs::plonk::{
         create_proof, keygen_pk, keygen_vk, verify_proof, ConstraintSystem,
@@ -965,8 +957,7 @@ mod test {
                 AllstrRegexDef::read_from_text("./test_regexes/regex2_test_lookup.txt");
             let substr_def2 =
                 SubstrRegexDef::read_from_text("./test_regexes/substr2_test_lookup.txt");
-            // let substr_def2 =
-            //     SubstrRegexDef::read_from_text("./test_regexes/substr2_test_lookup.txt");
+
             let gate = FlexGateConfig::<F>::configure(
                 meta,
                 halo2_base::gates::flex_gate::GateStrategy::Vertical,
@@ -975,6 +966,7 @@ mod test {
                 0,
                 K,
             );
+
             let regex_defs = vec![
                 RegexDefs {
                     allstr: all_regex_def1,
@@ -985,7 +977,9 @@ mod test {
                     substrs: vec![substr_def2],
                 },
             ];
+
             let config = RegexVerifyConfig::configure(meta, MAX_STRING_LEN, gate, regex_defs);
+
             config
         }
 
@@ -994,34 +988,10 @@ mod test {
             config: Self::Config,
             mut layouter: impl Layouter<F>,
         ) -> Result<(), Error> {
-            let regex1_decomposed: DecomposedRegexConfig =
-                serde_json::from_reader(File::open("./test_regexes/regex1_test.json").unwrap())
-                    .unwrap();
-            regex1_decomposed
-                .gen_regex_files(
-                    &Path::new("./test_regexes/regex1_test_lookup.txt").to_path_buf(),
-                    &[Path::new("./test_regexes/substr1_test_lookup.txt").to_path_buf()],
-                )
-                .unwrap();
-            let regex2_decomposed: DecomposedRegexConfig =
-                serde_json::from_reader(File::open("./test_regexes/regex2_test.json").unwrap())
-                    .unwrap();
-            regex2_decomposed
-                .gen_regex_files(
-                    &Path::new("./test_regexes/regex2_test_lookup.txt").to_path_buf(),
-                    &[Path::new("./test_regexes/substr2_test_lookup.txt").to_path_buf()],
-                )
-                .unwrap();
-            // test regex: "email was meant for @(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|0|1|2|3|4|5|6|7|8|9|_)+( and (a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z)+)*."
             config.load(&mut layouter)?;
 
-            // println!("Synthesize being called...");
             let mut first_pass = SKIP_FIRST_PASS;
             let gate = config.gate().clone();
-            // let mut substr_positions = self.substr_positions.to_vec();
-            // for _ in substr_positions.len()..self.substr_def.max_length {
-            //     substr_positions.push(0);
-            // }
 
             layouter.assign_region(
                 || "regex",
@@ -1049,6 +1019,7 @@ mod test {
                             expected_substr_ids[start + idx] = substr_idx + 1;
                         }
                     }
+
                     for idx in 0..MAX_STRING_LEN {
                         result.masked_characters[idx]
                             .value()
@@ -1065,17 +1036,57 @@ mod test {
     }
 
     #[test]
+    fn generate_test_files() {
+        let mut regex1_decomposed: DecomposedRegexConfig =
+            serde_json::from_reader(File::open("./test_regexes/regex1_test.json").unwrap())
+                .unwrap();
+        let regex_and_dfa_1 = regex1_decomposed
+            .to_regex_and_dfa()
+            .expect("failed to convert the decomposed regex to dfa");
+        regex_and_dfa_1
+            .gen_halo2_tables(
+                &Path::new("./test_regexes/regex1_test_lookup.txt").to_path_buf(),
+                &[Path::new("./test_regexes/substr1_test_lookup.txt").to_path_buf()],
+                true,
+            )
+            .unwrap();
+
+        let mut regex2_decomposed: DecomposedRegexConfig =
+            serde_json::from_reader(File::open("./test_regexes/regex2_test.json").unwrap())
+                .unwrap();
+        let regex_and_dfa_2 = regex2_decomposed
+            .to_regex_and_dfa()
+            .expect("failed to convert the decomposed regex to dfa");
+        regex_and_dfa_2
+            .gen_halo2_tables(
+                &Path::new("./test_regexes/regex2_test_lookup.txt").to_path_buf(),
+                &[Path::new("./test_regexes/substr2_test_lookup.txt").to_path_buf()],
+                true,
+            )
+            .unwrap();
+
+        let mut regex3_decomposed: DecomposedRegexConfig =
+            serde_json::from_reader(File::open("./test_regexes/regex3_test.json").unwrap())
+                .unwrap();
+        let regex_and_dfa_3 = regex3_decomposed
+            .to_regex_and_dfa()
+            .expect("failed to convert the decomposed regex to dfa");
+        regex_and_dfa_3
+            .gen_halo2_tables(
+                &Path::new("./test_regexes/regex3_test_lookup.txt").to_path_buf(),
+                &[Path::new("./test_regexes/substr3_test_lookup.txt").to_path_buf()],
+                true,
+            )
+            .unwrap();
+    }
+
+    #[test]
     fn test_substr_pass1() {
         let characters: Vec<u8> = "email was meant for @y. Also for x."
             .chars()
             .map(|c| c as u8)
             .collect();
-        // Make a vector of the numbers 1...24
-        // let states = (1..=STRING_LEN as u128).collect::<Vec<u128>>();
-        // assert_eq!(characters.len(), STRING_LEN);
-        // assert_eq!(states.len(), STRING_LEN);
 
-        // Successful cases
         let circuit = TestCircuit1::<Fr> {
             characters,
             correct_substrs: vec![(21, "y".to_string()), (33, "x".to_string())],
@@ -1084,7 +1095,6 @@ mod test {
 
         let prover = MockProver::run(K as u32, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
-        // CircuitCost::<Eq, RegexCheckCircuit<Fp>>::measure((k as u128).try_into().unwrap(), &circuit)
         println!(
             "{:?}",
             CircuitCost::<G1, TestCircuit1<Fr>>::measure((K as u128).try_into().unwrap(), &circuit)
@@ -1097,12 +1107,7 @@ mod test {
             .chars()
             .map(|c| c as u8)
             .collect();
-        // Make a vector of the numbers 1...24
-        // let states = (1..=STRING_LEN as u128).collect::<Vec<u128>>();
-        // assert_eq!(characters.len(), STRING_LEN);
-        // assert_eq!(states.len(), STRING_LEN);
 
-        // Successful cases
         let circuit = TestCircuit1::<Fr> {
             characters,
             correct_substrs: vec![(21, "yajk".to_string()), (36, "swq".to_string())],
@@ -1111,7 +1116,6 @@ mod test {
 
         let prover = MockProver::run(K as u32, &circuit, vec![]).unwrap();
         prover.assert_satisfied();
-        // CircuitCost::<Eq, RegexCheckCircuit<Fp>>::measure((k as u128).try_into().unwrap(), &circuit)
         println!(
             "{:?}",
             CircuitCost::<G1, TestCircuit1<Fr>>::measure((K as u128).try_into().unwrap(), &circuit)
@@ -1120,15 +1124,9 @@ mod test {
 
     #[test]
     fn test_substr_fail1() {
-        // 1. The string does not satisfy the regex.
+        // The string does not satisfy the regex.
         let characters: Vec<u8> = "email was meant for @@".chars().map(|c| c as u8).collect();
 
-        // Make a vector of the numbers 1...24
-        // let states = (1..=STRING_LEN as u128).collect::<Vec<u128>>();
-        // assert_eq!(characters.len(), STRING_LEN);
-        // assert_eq!(states.len(), STRING_LEN);
-
-        // Successful cases
         let circuit = TestCircuit1::<Fr> {
             characters,
             correct_substrs: vec![],
@@ -1142,7 +1140,6 @@ mod test {
             }
             _ => assert!(false, "Should be error."),
         }
-        // CircuitCost::<Eq, RegexCheckCircuit<Fp>>::measure((k as u128).try_into().unwrap(), &circuit)
         println!(
             "{:?}",
             CircuitCost::<G1, TestCircuit1<Fr>>::measure((K as u128).try_into().unwrap(), &circuit)
@@ -1249,25 +1246,10 @@ mod test {
             config: Self::Config,
             mut layouter: impl Layouter<F>,
         ) -> Result<(), Error> {
-            let regex_decomposed: DecomposedRegexConfig =
-                serde_json::from_reader(File::open("./test_regexes/regex3_test.json").unwrap())
-                    .unwrap();
-            regex_decomposed
-                .gen_regex_files(
-                    &Path::new("./test_regexes/regex3_test_lookup.txt").to_path_buf(),
-                    &[Path::new("./test_regexes/substr3_test_lookup.txt").to_path_buf()],
-                )
-                .unwrap();
-            // test regex: "email was meant for @(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|0|1|2|3|4|5|6|7|8|9|_)+( and (a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z)+)*."
             config.load(&mut layouter)?;
 
-            // println!("Synthesize being called...");
             let mut first_pass = SKIP_FIRST_PASS;
             let gate = config.gate().clone();
-            // let mut substr_positions = self.substr_positions.to_vec();
-            // for _ in substr_positions.len()..self.substr_def.max_length {
-            //     substr_positions.push(0);
-            // }
 
             layouter.assign_region(
                 || "regex",
@@ -1319,12 +1301,7 @@ mod test {
             .chars()
             .map(|c| c as u8)
             .collect();
-        // Make a vector of the numbers 1...24
-        // let states = (1..=STRING_LEN as u128).collect::<Vec<u128>>();
-        // assert_eq!(characters.len(), STRING_LEN);
-        // assert_eq!(states.len(), STRING_LEN);
 
-        // Successful cases
         let circuit = TestCircuit2::<Fr> {
             characters,
             correct_substrs: vec![(5, "alice@gmail.com".to_string())],
@@ -1334,7 +1311,6 @@ mod test {
 
         let prover = MockProver::run(K as u32, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
-        // CircuitCost::<Eq, RegexCheckCircuit<Fp>>::measure((k as u128).try_into().unwrap(), &circuit)
         println!(
             "{:?}",
             CircuitCost::<G1, TestCircuit2<Fr>>::measure((K as u128).try_into().unwrap(), &circuit)
@@ -1343,26 +1319,20 @@ mod test {
 
     #[test]
     fn test_substr_pass4() {
-        let characters: Vec<u8> = "dummy\r\nfrom:alice<alice@gmail.com>\r\n"
+        let characters: Vec<u8> = "dummy\r\nfrom:<alice@gmail.com>\r\n"
             .chars()
             .map(|c| c as u8)
             .collect();
-        // Make a vector of the numbers 1...24
-        // let states = (1..=STRING_LEN as u128).collect::<Vec<u128>>();
-        // assert_eq!(characters.len(), STRING_LEN);
-        // assert_eq!(states.len(), STRING_LEN);
 
-        // Successful cases
         let circuit = TestCircuit2::<Fr> {
             characters,
-            correct_substrs: vec![(18, "alice@gmail.com".to_string())],
+            correct_substrs: vec![(13, "alice@gmail.com".to_string())],
             is_success: true,
             _marker: PhantomData,
         };
 
         let prover = MockProver::run(K as u32, &circuit, vec![]).unwrap();
         assert_eq!(prover.verify(), Ok(()));
-        // CircuitCost::<Eq, RegexCheckCircuit<Fp>>::measure((k as u128).try_into().unwrap(), &circuit)
         println!(
             "{:?}",
             CircuitCost::<G1, TestCircuit2<Fr>>::measure((K as u128).try_into().unwrap(), &circuit)
@@ -1375,12 +1345,7 @@ mod test {
             .chars()
             .map(|c| c as u8)
             .collect();
-        // Make a vector of the numbers 1...24
-        // let states = (1..=STRING_LEN as u128).collect::<Vec<u128>>();
-        // assert_eq!(characters.len(), STRING_LEN);
-        // assert_eq!(states.len(), STRING_LEN);
 
-        // Successful cases
         let circuit = TestCircuit2::<Fr> {
             characters,
             correct_substrs: vec![],
@@ -1395,7 +1360,6 @@ mod test {
             }
             _ => panic!("Should be error."),
         }
-        // CircuitCost::<Eq, RegexCheckCircuit<Fp>>::measure((k as u128).try_into().unwrap(), &circuit)
         println!(
             "{:?}",
             CircuitCost::<G1, TestCircuit2<Fr>>::measure((K as u128).try_into().unwrap(), &circuit)
@@ -1408,12 +1372,7 @@ mod test {
             .chars()
             .map(|c| c as u8)
             .collect();
-        // Make a vector of the numbers 1...24
-        // let states = (1..=STRING_LEN as u128).collect::<Vec<u128>>();
-        // assert_eq!(characters.len(), STRING_LEN);
-        // assert_eq!(states.len(), STRING_LEN);
 
-        // Successful cases
         let circuit = TestCircuit2::<Fr> {
             characters,
             correct_substrs: vec![],
@@ -1428,7 +1387,6 @@ mod test {
             }
             _ => panic!("Should be error."),
         }
-        // CircuitCost::<Eq, RegexCheckCircuit<Fp>>::measure((k as u128).try_into().unwrap(), &circuit)
         println!(
             "{:?}",
             CircuitCost::<G1, TestCircuit2<Fr>>::measure((K as u128).try_into().unwrap(), &circuit)
@@ -1441,12 +1399,7 @@ mod test {
             .chars()
             .map(|c| c as u8)
             .collect();
-        // Make a vector of the numbers 1...24
-        // let states = (1..=STRING_LEN as u128).collect::<Vec<u128>>();
-        // assert_eq!(characters.len(), STRING_LEN);
-        // assert_eq!(states.len(), STRING_LEN);
 
-        // Successful cases
         let circuit = TestCircuit2::<Fr> {
             characters,
             correct_substrs: vec![],
@@ -1461,7 +1414,6 @@ mod test {
             }
             _ => panic!("Should be error."),
         }
-        // CircuitCost::<Eq, RegexCheckCircuit<Fp>>::measure((k as u128).try_into().unwrap(), &circuit)
         println!(
             "{:?}",
             CircuitCost::<G1, TestCircuit2<Fr>>::measure((K as u128).try_into().unwrap(), &circuit)

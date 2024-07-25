@@ -11,11 +11,11 @@ use halo2_base::Context;
 use halo2_base::{utils::PrimeField, ContextParams, SKIP_FIRST_PASS};
 use halo2_regex::{
     defs::{AllstrRegexDef, RegexDefs, SubstrRegexDef},
-    vrm::DecomposedRegexConfig,
     RegexVerifyConfig,
 };
 use std::marker::PhantomData;
 use std::path::Path;
+use zk_regex_compiler::DecomposedRegexConfig;
 
 const MAX_STRING_LEN: usize = 128;
 const K: usize = 17;
@@ -50,7 +50,6 @@ impl<F: PrimeField> Circuit<F> for ExampleCircuit<F> {
     fn without_witnesses(&self) -> Self {
         Self {
             characters: vec![],
-            // correct_substrs: vec![],
             _marker: PhantomData,
         }
     }
@@ -81,18 +80,13 @@ impl<F: PrimeField> Circuit<F> for ExampleCircuit<F> {
         config: Self::Config,
         mut layouter: impl Layouter<F>,
     ) -> Result<(), Error> {
-        // test regex: "email was meant for @(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z|A|B|C|D|E|F|G|H|I|J|K|L|M|N|O|P|Q|R|S|T|U|V|W|X|Y|Z|0|1|2|3|4|5|6|7|8|9|_)+( and (a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z)+)*."
         config.inner.load(&mut layouter)?;
 
-        // println!("Synthesize being called...");
         let mut first_pass = SKIP_FIRST_PASS;
         let gate = config.inner.gate().clone();
-        // let mut substr_positions = self.substr_positions.to_vec();
-        // for _ in substr_positions.len()..self.substr_def.max_length {
-        //     substr_positions.push(0);
-        // }
         let mut masked_char_cells = vec![];
         let mut masked_substr_id_cells = vec![];
+
         layouter.assign_region(
             || "regex",
             |region| {
@@ -120,68 +114,58 @@ impl<F: PrimeField> Circuit<F> for ExampleCircuit<F> {
                     masked_substr_id_cells.push(assigned_substr_id.cell());
                 }
 
-                // for (substr_idx, (start, chars)) in self.correct_substrs.iter().enumerate() {
-                //     for (idx, char) in chars.as_bytes().iter().enumerate() {
-                //         expected_masked_chars[start + idx] = *char;
-                //         expected_substr_ids[start + idx] = substr_idx + 1;
-                //     }
-                // }
-                // for idx in 0..MAX_STRING_LEN {
-                //     result.masked_characters[idx]
-                //         .value()
-                //         .map(|v| assert_eq!(*v, F::from(expected_masked_chars[idx] as u64)));
-                //     result.all_substr_ids[idx]
-                //         .value()
-                //         .map(|v| assert_eq!(*v, F::from(expected_substr_ids[idx] as u64)));
-                // }
                 Ok(())
             },
         )?;
+
         for (idx, cell) in masked_char_cells.into_iter().enumerate() {
             layouter.constrain_instance(cell, config.instances, idx)?;
         }
         for (idx, cell) in masked_substr_id_cells.into_iter().enumerate() {
             layouter.constrain_instance(cell, config.instances, MAX_STRING_LEN + idx)?;
         }
+
         Ok(())
     }
 }
 
 fn main() {
-    let regex1_decomposed: DecomposedRegexConfig = serde_json::from_str(
+    println!("Parsing and converting decomposed regex to DFA...");
+    let mut regex1_decomposed: DecomposedRegexConfig = serde_json::from_str(
         r#"
         {
-            "max_byte_size": 128,
             "parts":[
                 {
                     "is_public": false,
-                    "regex_def": "email was meant for @",
-                    "max_size": 21
+                    "regex_def": "email was meant for @"
                 },
                 {
                     "is_public": true,
-                    "regex_def": "(a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z)+",
-                    "max_size": 7,
-                    "solidity": {
-                        "type": "String"
-                    }
+                    "regex_def": "[a-z]+"
                 },
                 {
                     "is_public": false,
-                    "regex_def": ".",
-                    "max_size": 1
+                    "regex_def": "\\."
                 }
             ]
         }
     "#,
     )
     .unwrap();
-    regex1_decomposed
-        .gen_regex_files(
+    let regex_and_dfa = regex1_decomposed
+        .to_regex_and_dfa()
+        .expect("failed to convert the decomposed regex to dfa");
+
+    println!("Generating DFA tables...");
+    regex_and_dfa
+        .gen_halo2_tables(
             &Path::new("./examples/ex_allstr.txt").to_path_buf(),
             &[Path::new("./examples/ex_substr_id1.txt").to_path_buf()],
+            true,
         )
         .unwrap();
+
+    println!("Creating and preparing example circuit...");
     let characters: Vec<u8> = "email was meant for @vitalik."
         .chars()
         .map(|c| c as u8)
@@ -197,6 +181,8 @@ fn main() {
         masked_chars[offset + idx] = Fr::from(*char as u64);
         masked_substr_ids[offset + idx] = Fr::from(1);
     }
+
+    println!("Running MockProver and verifying proof...");
     let prover = MockProver::run(
         K as u32,
         &circuit,
@@ -204,4 +190,5 @@ fn main() {
     )
     .unwrap();
     assert_eq!(prover.verify(), Ok(()));
+    println!("Proof verified successfully.");
 }

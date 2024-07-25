@@ -73,10 +73,7 @@ impl AllstrRegexDef {
     /// # Return values
     /// Return a new [`AllstrRegexDef`].
     pub fn read_from_reader<R: std::io::Read>(reader: BufReader<R>) -> Self {
-        // let file = File::open(file_path).unwrap();
-        // let reader = BufReader::new(file);
         let mut state_lookup = HashMap::<(u8, u64), (usize, u64)>::new();
-        // let mut array = Vec::new();
         let mut first_state_val = 0;
         let mut accepted_state_val = 0;
         let mut largest_state_val = 0;
@@ -99,7 +96,6 @@ impl AllstrRegexDef {
             } else {
                 state_lookup.insert((elements[2] as u8, elements[0]), (idx, elements[1]));
             }
-            // array.push(elements);
         }
         Self {
             state_lookup,
@@ -113,16 +109,6 @@ impl AllstrRegexDef {
 /// Regex that each substring must satisfy.
 #[derive(Debug, Clone, Default)]
 pub struct SubstrRegexDef {
-    /// Maximum length of the substring.
-    pub max_length: usize,
-    /// A minimum position of the first character in the substring.
-    /// # Notes
-    /// Our current implementation of [`RegexVerifyConfig`] does not use `min_position`.
-    pub min_position: u64,
-    /// A maximum position of the first character in the substring.
-    /// # Notes
-    /// Our current implementation of [`RegexVerifyConfig`] does not use `max_position`.
-    pub max_position: u64,
     /// A set of state transitions, i.e., `(current_state_id, next_state_id)`, that the substring satisfies.
     pub valid_state_transitions: HashSet<(u64, u64)>,
     /// A vector of state ids from which the state ids of the substring start.
@@ -145,17 +131,11 @@ impl SubstrRegexDef {
     /// # Return values
     /// Returns a new [`SubstrRegexDef`].
     pub fn new(
-        max_length: usize,
-        min_position: u64,
-        max_position: u64,
         valid_state_transitions: HashSet<(u64, u64)>,
         start_states: Vec<u64>,
         end_states: Vec<u64>,
     ) -> Self {
         Self {
-            max_length,
-            min_position,
-            max_position,
             valid_state_transitions,
             start_states,
             end_states,
@@ -208,10 +188,6 @@ impl SubstrRegexDef {
     /// Returns a new [`SubstrRegexDef`].
     pub fn read_from_reader<R: std::io::Read>(reader: BufReader<R>) -> Self {
         let mut valid_state_transitions = HashSet::<(u64, u64)>::new();
-        // let mut one_state_path = HashMap::<u64, u64>::new();
-        let mut max_length = 0;
-        let mut min_position = 0;
-        let mut max_position = 0;
         let mut start_states = vec![];
         let mut end_states = vec![];
 
@@ -225,39 +201,15 @@ impl SubstrRegexDef {
                 })
                 .collect();
             if idx == 0 {
-                max_length = elements[0] as usize;
-            } else if idx == 1 {
-                min_position = elements[0];
-            } else if idx == 2 {
-                max_position = elements[0];
-            } else if idx == 3 {
                 start_states = elements;
-            } else if idx == 4 {
+            } else if idx == 1 {
                 end_states = elements;
             } else {
                 valid_state_transitions.insert((elements[0], elements[1]));
-                // if elements[0] < start_state {
-                //     start_state = elements[0];
-                // }
-                // if one_state_path.get(&elements[0]).is_none() && elements[0] != elements[1] {
-                //     one_state_path.insert(elements[0], elements[1]);
-                // }
-            };
+            }
         }
-        // let mut end_state = start_state;
-        // while let Some(next_state) = one_state_path.get(&end_state) {
-        //     println!("end_state {} next_state {}", end_state, next_state);
-        //     end_state = *next_state;
-        // }
-        // println!(
-        //     "start_state {} end_state {} valid transition {:?}",
-        //     start_state, end_state, valid_state_transitions
-        // );
 
         Self {
-            max_length,
-            min_position,
-            max_position,
             valid_state_transitions,
             start_states,
             end_states,
